@@ -23,4 +23,4 @@ test:
 	uv run pytest
 
 test-coverage:
-        echo "No tests yet"
+	echo "No tests yet"
