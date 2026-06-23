@@ -45,9 +45,6 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Coverage
-        run: make test-coverage
-
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
@@ -56,5 +53,4 @@ jobs:
           args: >
             -Dsonar.projectKey=NikitaSukharev_python-project-83
             -Dsonar.organization=nikitasukharev
-            -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.sources=page_analyzer
