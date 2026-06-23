@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-4">Сайты</h1>
+  <table class="table table-bordered table-striped align-middle" data-test="urls">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Имя</th>
+        <th>Последняя проверка</th>
+        <th>Код ответа</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if urls %}
+        {% for url in urls %}
+        <tr>
+          <td>{{ url['id'] }}</td>
+          <td>
+            <a href="{{ url_for('show_url_by_id', url_id=url['id']) }}">
+              {{ url['name'] }}
+            </a>
+          </td>
+          <td>
+            {% if url['last_check_date'] %}
+              {{ url['last_check_date'].strftime('%Y-%m-%d') }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if url['status_code'] %}
+              {{ url['status_code'] }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="4" class="text-center">Нет данных для отображения</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

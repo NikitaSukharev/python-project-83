@@ -1,11 +1,25 @@
-*.egg-info
-poetry.txt
+# Python
 __pycache__/
-dist/
 *.pyc
-.venv/
+*.pyo
+*.egg-info
+dist/
 .coverage
 coverage.xml
 .pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Environment files (keep .env.example)
 .env
-postgres.txt
+
+# uv
+uv.lock
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/

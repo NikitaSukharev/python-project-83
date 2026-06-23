@@ -1,79 +1,112 @@
-from flask import Flask, request, render_template, redirect, url_for, flash
-from .db import (open_db_connection, close_db_connection, get_url_by_id,
-                 fetch_and_parse_url, insert_url_check, check_url_exists,
-                 insert_new_url, get_all_urls, get_url_details)
-import validators
-from dotenv import load_dotenv
+from page_analyzer.parser import check_page
+from flask import (
+    Flask,
+    render_template,
+    request,
+    flash,
+    redirect,
+    url_for,
+)
+
 import os
-from .utils import format_date, normalize_url
+import requests
+from dotenv import load_dotenv
+
+from page_analyzer.url_validator import is_valid_url, normalize_url
+from .database import (
+    check_url_existence,
+    add_urls,
+    get_one_url,
+    get_all_urls,
+    create_check_entry,
+    get_checks_for_url,
+)
 
 
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'fallback-secret-key')
-app.jinja_env.filters['date'] = format_date
-
-
-@app.route('/urls/<int:id>/checks', methods=['POST'])
-def create_check(id):
-    conn = open_db_connection()[0]
-    url = get_url_by_id(conn, id)
-
-    if url:
-        result = fetch_and_parse_url(url)
-        if 'error' not in result:
-            insert_url_check(conn, id, result)
-            flash('Страница успешно проверена', 'alert-success')
-        else:
-            flash(result['error'], 'alert-danger')
-    else:
-        flash('URL не найден', 'alert-danger')
-
-    close_db_connection(conn, None)
-    return redirect(url_for('url_details', id=id))
+app.config['DATABASE_URL'] = os.getenv('DATABASE_URL')
 
 
 @app.route('/')
 def index():
+    """Главная страница"""
     return render_template('index.html')
 
 
-@app.route('/urls', methods=['POST'])
+@app.post('/urls')
 def add_url():
-    raw_url = request.form['url']
-    if not validators.url(raw_url):
-        flash('Некорректный URL', 'alert-danger')
+    """Добавление нового URL"""
+    url_name = request.form.get('url', '')
+
+    if not is_valid_url(url_name):
+        flash('Некорректный URL', 'danger')
         return render_template('index.html'), 422
 
-    normalized_url = normalize_url(raw_url)
-    conn, cur = open_db_connection()
+    normalized_url_name = normalize_url(url_name)
+    existing_url_id = check_url_existence(app, normalized_url_name)
+
+    if existing_url_id:
+        flash('Страница уже существует', 'info')
+        return redirect(url_for('show_url_by_id', url_id=existing_url_id))
+
+    new_url_id = add_urls(app, normalized_url_name)
+    flash('Страница успешно добавлена', 'success')
+    return redirect(url_for('show_url_by_id', url_id=new_url_id))
+
+
+@app.get('/urls')
+def get_urls():
+    """Список всех URL"""
+    urls = get_all_urls(app)
+    return render_template('urls.html', urls=urls)
+
+
+@app.get('/urls/<int:url_id>')
+def show_url_by_id(url_id):
+    """Страница конкретного URL"""
+    url_obj = get_one_url(app, url_id)
+
+    if not url_obj:
+        flash('URL не найден', 'danger')
+        return redirect(url_for('get_urls'))
+
+    url_checks = get_checks_for_url(app, url_id)
+    return render_template('url.html', url=url_obj, url_checks=url_checks)
+
+
+@app.route('/urls/<int:id>/checks', methods=['POST'])
+def create_check(id):
+    """Запуск проверки URL"""
+    url_obj = get_one_url(app, id)
+
+    if not url_obj:
+        flash('URL не найден', 'danger')
+        return redirect(url_for('get_urls'))
+
     try:
-        existing_url = check_url_exists(cur, normalized_url)
-        if existing_url:
-            flash('Страница уже существует', 'alert-info')
-            redirect_url = redirect(url_for('url_details', id=existing_url['id']))
-        else:
-            url_id = insert_new_url(cur, normalized_url)
-            conn.commit()
-            flash('Страница успешно добавлена', 'alert-success')
-            redirect_url = redirect(url_for('url_details', id=url_id))
-    except Exception as e:
-        conn.rollback()
-        flash(f'Произошла ошибка при добавлении URL: {e}', 'alert-danger')
-        redirect_url = render_template('index.html'), 422
-    finally:
-        close_db_connection(conn, cur)
+        response = requests.get(url_obj['name'], timeout=15)
+        response.raise_for_status()
 
-    return redirect_url
+        parsed_data = check_page(response.text)
+        create_check_entry(
+            app,
+            url_obj['id'],
+            response.status_code,
+            parsed_data.get('h1'),
+            parsed_data.get('title'),
+            parsed_data.get('description'),
+        )
+        flash('Страница успешно проверена', 'success')
 
+    except requests.exceptions.HTTPError:
+        flash('Произошла ошибка при проверке', 'danger')
+    except requests.exceptions.Timeout:
+        flash('Произошла ошибка при проверке', 'danger')
+    except requests.exceptions.RequestException:
+        flash('Произошла ошибка при проверке', 'danger')
+    except Exception:
+        flash('Произошла ошибка при проверке', 'danger')
 
-@app.route('/urls')
-def urls():
-    urls_data = get_all_urls()
-    return render_template('urls.html', urls=urls_data)
-
-
-@app.route('/urls/<int:id>')
-def url_details(id):
-    url_data, checks = get_url_details(id)
-    return render_template('url.html', url=url_data, checks=checks)
+    return redirect(url_for('show_url_by_id', url_id=id))

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-lg mt-3">
+  <h1 class="mb-3">Сайт: {{ url['name'] }}</h1>
+
+  <table class="table table-bordered" data-test="url">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Имя</th>
+        <th>Дата создания</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ url['id'] }}</td>
+        <td>{{ url['name'] }}</td>
+        <td>{{ url['created_at'].strftime('%Y-%m-%d') if url['created_at'] else '' }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 class="mt-4 mb-3">Проверки</h2>
+  <form method="post" action="{{ url_for('create_check', id=url['id']) }}">
+    <input type="submit" class="btn btn-primary mb-3" value="Запустить проверку">
+  </form>
+
+  <table class="table table-bordered table-striped" data-test="checks">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Код ответа</th>
+        <th>h1</th>
+        <th>title</th>
+        <th>description</th>
+        <th>Дата создания</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if url_checks %}
+        {% for check in url_checks %}
+        <tr>
+          <td>{{ check['id'] }}</td>
+          <td>{{ check['status_code'] or '' }}</td>
+          <td>{{ check['h1'] or '' }}</td>
+          <td>{{ check['title'] or '' }}</td>
+          <td>{{ check['description'] or '' }}</td>
+          <td>{{ check['created_at'].strftime('%Y-%m-%d') if check['created_at'] else '' }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="6" class="text-center">Нет данных о проверках</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
